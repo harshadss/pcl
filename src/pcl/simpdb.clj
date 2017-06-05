@@ -2,7 +2,6 @@
   "Implements code from Chapter 3 of practical common lisp"
   (:gen-class))
 
-
 ;; code from chapter 3 of practical common lisp
 
 ;; pcl book uses plist in cl for storing single record/cd
@@ -33,7 +32,10 @@
 (add-record (make-cd "Fly" "Dixie Chicks" 8 true))
 (add-record (make-cd "Home" "Dixie Chicks" 9 true))
 
-
+;; print db using pprint instead of elaborate string formatting
+(defn dump-db
+  []
+  (clojure.pprint/pprint (deref db)))
 
 ;; saving to file , pr in clojure implements readable serialization
 ;; we store current state of the database
@@ -42,3 +44,34 @@
     (with-open [w (clojure.java.io/writer filename)]
       (binding [*out* w]
         (pr current-db)))))
+
+;; generate the right filter condition
+;; note that for parameter not passed, we always return true so if works out.
+;; where function returns a predicate, where is used with select
+(defn where
+  [& {:keys [artist rating title] 
+      :or [artist false rating false title false]}]
+  (fn [cd]
+    (and
+     (if artist (= artist (get cd :artist)) true)
+     (if rating (= rating (get cd :rating)) true)
+     (if title (= title (get cd :title)) true))))
+
+(defn select [wherefunc]
+  (filter wherefunc (deref db)))
+
+(select (where :rating 8))
+(select (where :title "Fly"))
+
+;; for updating, you move over the list, update it and then reset the value of db
+
+(defn updatedb
+  [select-fn update-map]
+  (let [update-seq (flatten (seq update-map))]
+    (reset! db
+      (map
+       #(if (select-fn %)
+          (apply assoc % update-seq)
+          %) (deref db)))))
+
+(updatedb (where :artist "Dixie Chicks") {:rating 12})
