@@ -49,7 +49,7 @@
 ;; note that for parameter not passed, we always return true so if works out.
 ;; where function returns a predicate, where is used with select
 (defn where
-  [& {:keys [artist rating title] 
+  [& {:keys [artist rating title]
       :or [artist false rating false title false]}]
   (fn [cd]
     (and
@@ -61,7 +61,40 @@
   (filter wherefunc (deref db)))
 
 (select (where :rating 8))
-(select (where :title "Fly"))
+;; macro part
+
+(def ^:dynamic row nil)
+
+(defn make-comparison-expr
+  [[field value]]
+  (list '= value (list 'get row field)))
+
+(defn make-comparison-expr
+  [[field value]]
+  `(= (get row ~field) ~value))
+
+(binding [row {:rating 8 :artist 9}]
+  (make-comparison-expr '(:rating 8)))
+
+;; for multiple pairs passed to the where form, iterate over the loop
+(defn make-comparison-expr-list
+  [all-field-pairs]
+  (let [pairs (partition 2 all-field-pairs)]
+    (for [x (map #(make-comparison-expr %) pairs)]
+      x)))
+
+(binding [row {:rating 8 :artist 9}]
+  (make-comparison-expr-list '(:artist "Dixie Chicks" :rating 8)))
+
+(defmacro where [clauses]
+  `(fn [cd#]
+     (binding [row cd#]
+      (every? eval (make-comparison-expr-list ~clauses)))))
+
+(defn select [wherefunc]
+  (filter wherefunc (deref db)))
+
+(select (where '(:title "Fly")))
 
 ;; for updating, you move over the list, update it and then reset the value of db
 
@@ -74,4 +107,5 @@
           (apply assoc % update-seq)
           %) (deref db)))))
 
-(updatedb (where :artist "Dixie Chicks") {:rating 12})
+(updatedb (where '(:artist "Dixie Chicks")) {:rating 12})
+
